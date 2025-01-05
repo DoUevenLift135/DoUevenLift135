@@ -1,42 +1,51 @@
 // src/pages/LoginPage.js
 import React, { useState } from 'react';
-import { auth } from '../firebaseConfig';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { auth, db } from '../firebaseConfig';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // Username or email
   const [password, setPassword] = useState('');
-  const [isSignup, setIsSignup] = useState(false); // Toggle between signup and login
   const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
 
-  const handleAuth = async () => {
+  const handleLogin = async () => {
     try {
-      if (isSignup) {
-        // Sign Up
-        await createUserWithEmailAndPassword(auth, email, password);
-        alert('Account created successfully! Please log in.');
-        setIsSignup(false); // Switch to login mode after successful signup
-      } else {
-        // Log In
-        await signInWithEmailAndPassword(auth, email, password);
-        navigate('/home'); // Navigate to the home page on successful login
+      // Check if the identifier is a username or email
+      let email = identifier;
+      if (!identifier.includes('@')) {
+        // If it's not an email, fetch the email associated with the username
+        const usersCollection = collection(db, 'users');
+        const q = query(usersCollection, where('username', '==', identifier));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+          setErrorMessage('Username not found.');
+          return;
+        }
+
+        // Extract the email from the user's Firestore document
+        email = snapshot.docs[0].data().email;
       }
-      setErrorMessage('');
+
+      // Sign in with email and password
+      await signInWithEmailAndPassword(auth, email, password);
+      navigate('/home');
     } catch (error) {
-      setErrorMessage(error.message); // Display any error that occurs
+      setErrorMessage(error.message);
     }
   };
 
   return (
     <div style={{ textAlign: 'center', padding: '20px' }}>
-      <h1>{isSignup ? 'Sign Up' : 'Log In'}</h1>
+      <h1>Log In</h1>
       <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
+        type="text"
+        placeholder="Username or Email"
+        value={identifier}
+        onChange={(e) => setIdentifier(e.target.value)}
         style={{
           padding: '10px',
           margin: '10px 0',
@@ -61,7 +70,7 @@ const LoginPage = () => {
       />
       <br />
       <button
-        onClick={handleAuth}
+        onClick={handleLogin}
         style={{
           padding: '10px 20px',
           backgroundColor: '#3498db',
@@ -72,21 +81,19 @@ const LoginPage = () => {
           cursor: 'pointer',
         }}
       >
-        {isSignup ? 'Sign Up' : 'Log In'}
+        Log In
       </button>
-      <p style={{ margin: '10px 0', color: 'red' }}>{errorMessage}</p>
+      <p style={{ color: 'red', marginTop: '10px' }}>{errorMessage}</p>
       <p
-        onClick={() => setIsSignup(!isSignup)}
+        onClick={() => navigate('/signup')}
         style={{
           color: '#3498db',
           cursor: 'pointer',
           textDecoration: 'underline',
-          marginTop: '10px',
+          marginTop: '20px',
         }}
       >
-        {isSignup
-          ? 'Already have an account? Log In'
-          : "Don't have an account? Sign Up"}
+        Don't have an account? Sign Up
       </p>
     </div>
   );
